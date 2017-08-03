@@ -1,3 +1,6 @@
+[![Build Status](https://travis-ci.org/remram44/cdchunking-rs.svg?branch=master)](https://travis-ci.org/remram44/cdchunking-rs/builds)
+[![Crates.io](https://img.shields.io/crates/v/cdchunking.svg)](https://crates.io/crates/cdchunking)
+
 Content-Defined Chunking
 ========================
 
