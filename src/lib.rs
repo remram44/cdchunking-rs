@@ -1,4 +1,5 @@
 use std::io::{self, Read};
+use std::num::Wrapping;
 
 /// This class is the internal method of finding chunk boundaries.
 ///
@@ -11,8 +12,13 @@ use std::io::{self, Read};
 /// hash, etc).
 pub trait ChunkerImpl {
     /// Look at the new bytes to maybe find a boundary.
-    fn find_boundary(&mut self, data: &[u8]) -> Some(usize);
+    fn find_boundary(&mut self, data: &[u8]) -> Option<usize>;
 }
+
+#[cfg(not(test))]
+const BUF_SIZE: usize = 4096;
+#[cfg(test)]
+const BUF_SIZE: usize = 8;
 
 /// Chunker object, wraps the rolling hash into a stream-splitting object.
 pub struct Chunker<I: ChunkerImpl> {
@@ -25,11 +31,11 @@ impl<I: ChunkerImpl> Chunker<I> {
         Chunker { inner: inner }
     }
 
-    pub fn whole_chunks<R: Read>(&mut self, reader: R) -> WholeChunks {
+    pub fn whole_chunks<R: Read>(self, reader: R) -> WholeChunks<R> {
         unimplemented!()
     }
 
-    pub fn all_chunks<R: Read>(&mut self, reader: R)
+    pub fn all_chunks<R: Read>(self, reader: R)
         -> io::Result<Vec<Vec<u8>>>
     {
         let mut chunks = Vec::new();
@@ -42,11 +48,18 @@ impl<I: ChunkerImpl> Chunker<I> {
         Ok(chunks)
     }
 
-    pub fn stream<R: Read>(&mut self, reader: R) -> ChunkStream {
-        unimplemented!()
+    pub fn stream<R: Read>(self, reader: R) -> ChunkStream<R, I> {
+        ChunkStream {
+            reader: reader,
+            inner: self.inner,
+            buffer: [0u8; BUF_SIZE],
+            pos: 0,
+            len: 0,
+            chunk_emitted: false,
+        }
     }
 
-    pub fn chunks<R: Read>(&mut self, reader: R) -> ChunkInfoStream {
+    pub fn chunks<R: Read>(self, reader: R) -> ChunkInfoStream<R, I> {
         let mut pos = 0;
         let mut last_chunk = 0;
         let mut chunk_iter = self.stream(reader);
@@ -55,41 +68,150 @@ impl<I: ChunkerImpl> Chunker<I> {
             match chunk {
                 ChunkInput::Data(d) => pos += d.len(),
                 ChunkInput::End => {
-                    yield ChunkInfo { start: last_chunk,
-                                      length: pos - last_chunk }
+                    /*yield ChunkInfo { start: last_chunk,
+                                      length: pos - last_chunk }*/
                     last_chunk = pos;
                 }
             }
         }
+        unimplemented!()
     }
 
-    pub fn slices(&mut self, buffer: &[u8]) -> Slices {
+    pub fn slices(self, buffer: &[u8]) -> Slices {
         unimplemented!()
     }
 }
 
-struct WholeChunks;
-struct ChunkStream;
-struct ChunkInfoStream;
-struct Slices;
+pub struct WholeChunks<R: Read> {
+    pd: std::marker::PhantomData<R>,
+}
+
+impl<R: Read> Iterator for WholeChunks<R> {
+    type Item = io::Result<Vec<u8>>;
+
+    fn next(&mut self) -> Option<io::Result<Vec<u8>>> {
+        unimplemented!()
+    }
+}
+
+pub enum ChunkInput<'a> {
+    Data(&'a [u8]),
+    End,
+}
+
+pub struct ChunkStream<R: Read, I: ChunkerImpl> {
+    reader: R,
+    inner: I,
+    buffer: [u8; BUF_SIZE],
+    pos: usize,
+    len: usize,
+    chunk_emitted: bool,
+}
+
+impl<R: Read, I: ChunkerImpl> ChunkStream<R, I> {
+    /// Iterate on the chunks, returning `ChunkInput` items.
+    ///
+    /// An item is either some data that is part of the current chunk, or `End`,
+    /// indicating the boundary between chunks.
+    ///
+    /// `End` is always returned at the end of the last chunk.
+    // Can't be Iterator because of 'a
+    pub fn read<'a>(&'a mut self) -> Option<io::Result<ChunkInput<'a>>> {
+        unimplemented!() // TODO: Get from dhstore's chunker
+    }
+}
+
+pub struct ChunkInfo {
+    start: usize,
+    length: usize,
+}
+
+impl ChunkInfo {
+    pub fn start(&self) -> usize {
+        self.start
+    }
+
+    pub fn length(&self) -> usize {
+        self.length
+    }
+
+    pub fn end(&self) -> usize {
+        self.start + self.length
+    }
+}
+
+pub struct ChunkInfoStream<R: Read, I: ChunkerImpl> {
+    pd: std::marker::PhantomData<R>,
+    inner: I,
+}
+
+impl<R: Read, I: ChunkerImpl> Iterator for ChunkInfoStream<R, I> {
+    type Item = io::Result<ChunkInfo>;
+
+    fn next(&mut self) -> Option<io::Result<ChunkInfo>> {
+        unimplemented!()
+    }
+}
+
+pub struct Slices<'a> {
+    pd: std::marker::PhantomData<&'a [u8]>,
+}
+
+impl<'a> Iterator for Slices<'a> {
+    type Item = &'a [u8];
+
+    fn next(&mut self) -> Option<&'a [u8]> {
+        unimplemented!()
+    }
+}
+
+const HM: Wrapping<u32> = Wrapping(123456791);
+
+pub struct ZPAQ {
+    nbits: usize,
+    c1: u8, // previous byte
+    o1: [u8; 256],
+    h: Wrapping<u32>,
+}
+
+impl ZPAQ {
+    pub fn new(nbits: usize) -> ZPAQ {
+        ZPAQ {
+            nbits: nbits,
+            c1: 0,
+            o1: [0; 256],
+            h: HM,
+        }
+    }
+}
+
+impl ChunkerImpl for ZPAQ {
+    fn find_boundary(&mut self, data: &[u8]) -> Option<usize> {
+        unimplemented!()
+    }
+}
 
 #[cfg(test)]
 mod tests {
+    use ::{Chunker, ChunkInput, ZPAQ};
+    use std::io::Cursor;
+
     fn base() -> (Chunker<ZPAQ>, &'static [u8],
                   Cursor<&'static [u8]>, &'static [u8]) {
         let rollinghash = ZPAQ::new(3); // 8-bit chunk average
         let chunker = Chunker::new(rollinghash);
-        let data = "abcdefghijklmnopqrstuvwxyz1234567890";
+        let data = b"abcdefghijklmnopqrstuvwxyz1234567890";
+        let expected = b"abcdefghijk|lmno|pq|rstuvw|xyz123|4567890|";
         (chunker, data, Cursor::new(data), expected)
     }
 
     #[test]
     fn test_whole_chunks() {
         let (chunker, _, reader, expected) = base();
-        let result = Vec::new();
+        let mut result = Vec::new();
 
         // Read whole chunks accumulated in vectors
-        for chunk: io::Result<Vec<u8>> in chunker.whole_chunks(reader) {
+        for chunk /* io::Result<Vec<u8>> */ in chunker.whole_chunks(reader) {
             let chunk = chunk.unwrap();
             result.extend(chunk);
             result.push(b'|');
@@ -100,12 +222,12 @@ mod tests {
     #[test]
     fn test_all_chunks() {
         let (chunker, _, reader, expected) = base();
-        let result = Vec::new();
+        let mut result = Vec::new();
 
         // Read all the chunks at once
         // Like using whole_chunks(...).collect() but also handles errors
         let chunks: Vec<Vec<u8>> = chunker.all_chunks(reader).unwrap();
-        for chunk: Vec<u8> in chunks {
+        for chunk /* Vec<u8> */ in chunks {
             result.extend(chunk);
             result.push(b'|');
         }
@@ -115,7 +237,7 @@ mod tests {
     #[test]
     fn test_stream() {
         let (chunker, _, reader, expected) = base();
-        let result = Vec::new();
+        let mut result = Vec::new();
 
         // Zero-allocation by using a fixed-size internal buffer
         let mut chunk_iter = chunker.stream(reader);
@@ -134,10 +256,10 @@ mod tests {
     #[test]
     fn test_slices() {
         let (chunker, data, _, expected) = base();
-        let result = Vec::new();
+        let mut result = Vec::new();
 
         // Get slices from an in-memory buffer holding the whole input
-        for slice: &[u8] in chunker.slices(data) {
+        for slice /* &[u8] */ in chunker.slices(data) {
             result.extend(slice);
             result.push(b'|');
         }
@@ -147,13 +269,12 @@ mod tests {
     #[test]
     fn test_chunks() {
         let (chunker, data, reader, expected) = base();
-        let result = Vec::new();
+        let mut result = Vec::new();
 
         // Get chunk positions
         for chunk_info in chunker.chunks(reader) {
             let chunk_info = chunk_info.unwrap();
-            result.extend(&data[chunk_info.start..(chunk_info.start +
-                                                   chunk_info.length)]);
+            result.extend(&data[chunk_info.start()..chunk_info.end()]);
             result.push(b'|');
         }
         assert_eq!(result, expected);
