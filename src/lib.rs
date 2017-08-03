@@ -1,4 +1,5 @@
 use std::io::{self, Read};
+use std::mem::swap;
 use std::num::Wrapping;
 
 /// This class is the internal method of finding chunk boundaries.
@@ -31,8 +32,11 @@ impl<I: ChunkerImpl> Chunker<I> {
         Chunker { inner: inner }
     }
 
-    pub fn whole_chunks<R: Read>(self, reader: R) -> WholeChunks<R> {
-        unimplemented!()
+    pub fn whole_chunks<R: Read>(self, reader: R) -> WholeChunks<R, I> {
+        WholeChunks {
+            stream: self.stream(reader),
+            buffer: Vec::new(),
+        }
     }
 
     pub fn all_chunks<R: Read>(self, reader: R)
@@ -60,37 +64,43 @@ impl<I: ChunkerImpl> Chunker<I> {
     }
 
     pub fn chunks<R: Read>(self, reader: R) -> ChunkInfoStream<R, I> {
-        let mut pos = 0;
-        let mut last_chunk = 0;
-        let mut chunk_iter = self.stream(reader);
-        while let Some(chunk) = chunk_iter.read() {
-            let chunk = chunk.unwrap();
-            match chunk {
-                ChunkInput::Data(d) => pos += d.len(),
-                ChunkInput::End => {
-                    /*yield ChunkInfo { start: last_chunk,
-                                      length: pos - last_chunk }*/
-                    last_chunk = pos;
-                }
-            }
+        ChunkInfoStream {
+            stream: self.stream(reader),
+            last_chunk: 0,
+            pos: 0,
         }
-        unimplemented!()
     }
 
     pub fn slices(self, buffer: &[u8]) -> Slices {
-        unimplemented!()
+        Slices {
+            buffer: buffer,
+            last_chunk: 0,
+            pos: 0,
+        }
     }
 }
 
-pub struct WholeChunks<R: Read> {
-    pd: std::marker::PhantomData<R>,
+pub struct WholeChunks<R: Read, I: ChunkerImpl> {
+    stream: ChunkStream<R, I>,
+    buffer: Vec<u8>,
 }
 
-impl<R: Read> Iterator for WholeChunks<R> {
+impl<R: Read, I: ChunkerImpl> Iterator for WholeChunks<R, I> {
     type Item = io::Result<Vec<u8>>;
 
     fn next(&mut self) -> Option<io::Result<Vec<u8>>> {
-        unimplemented!()
+        while let Some(chunk) = self.stream.read() {
+            match chunk {
+                Err(e) => return Some(Err(e)),
+                Ok(ChunkInput::Data(d)) => self.buffer.extend_from_slice(d),
+                Ok(ChunkInput::End) => {
+                    let mut res = Vec::new();
+                    swap(&mut res, &mut self.buffer);
+                    return Some(Ok(res));
+                }
+            }
+        }
+        None
     }
 }
 
@@ -141,27 +151,42 @@ impl ChunkInfo {
 }
 
 pub struct ChunkInfoStream<R: Read, I: ChunkerImpl> {
-    pd: std::marker::PhantomData<R>,
-    inner: I,
+    stream: ChunkStream<R, I>,
+    last_chunk: usize,
+    pos: usize,
 }
 
 impl<R: Read, I: ChunkerImpl> Iterator for ChunkInfoStream<R, I> {
     type Item = io::Result<ChunkInfo>;
 
     fn next(&mut self) -> Option<io::Result<ChunkInfo>> {
-        unimplemented!()
+        while let Some(chunk) = self.stream.read() {
+            match chunk {
+                Err(e) => return Some(Err(e)),
+                Ok(ChunkInput::Data(d)) => self.pos += d.len(),
+                Ok(ChunkInput::End) => {
+                    let start = self.last_chunk;
+                    self.last_chunk = self.pos;
+                    return Some(Ok(ChunkInfo { start: start,
+                                               length: self.pos - start }));
+                }
+            }
+        }
+        None
     }
 }
 
 pub struct Slices<'a> {
-    pd: std::marker::PhantomData<&'a [u8]>,
+    buffer: &'a [u8],
+    last_chunk: usize,
+    pos: usize,
 }
 
 impl<'a> Iterator for Slices<'a> {
     type Item = &'a [u8];
 
     fn next(&mut self) -> Option<&'a [u8]> {
-        unimplemented!()
+        unimplemented!() // TODO: Different implementation here, don't use another buffer
     }
 }
 
@@ -187,7 +212,7 @@ impl ZPAQ {
 
 impl ChunkerImpl for ZPAQ {
     fn find_boundary(&mut self, data: &[u8]) -> Option<usize> {
-        unimplemented!()
+        unimplemented!() // TODO: Get from dhstore's chunker
     }
 }
 
