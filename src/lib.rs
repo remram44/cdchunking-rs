@@ -1,3 +1,5 @@
+use std::io::{self, Read};
+
 /// This class is the internal method of finding chunk boundaries.
 ///
 /// It can look at the actual bytes or not, for example:
@@ -44,9 +46,7 @@ impl<I: ChunkerImpl> Chunker<I> {
         unimplemented!()
     }
 
-    pub fn chunks<R: IntoRead>(&mut self, reader: R) -> ChunkInfoStream {
-        let mut reader = reader.into_reader();
-
+    pub fn chunks<R: Read>(&mut self, reader: R) -> ChunkInfoStream {
         let mut pos = 0;
         let mut last_chunk = 0;
         let mut chunk_iter = self.stream(reader);
@@ -68,59 +68,94 @@ impl<I: ChunkerImpl> Chunker<I> {
     }
 }
 
-#[test]
-fn test() {
-    do_test(Cursor::new("abcdef"), ZPAQ::new(4));
-}
+struct WholeChunks;
+struct ChunkStream;
+struct ChunkInfoStream;
+struct Slices;
 
-fn do_test<R: Read, I: ChunkerImpl>(reader: R, inner: I) {
-    let mut stdout = io::stdout().lock();
-
-    let rollinghash = ZPAQ::new(3); // 8-bit chunk average
-    let chunker = Chunker::new(rollinghash);
-
-    // Read whole chunks accumulated in vectors
-    for chunk: io::Result<Vec<u8>> in chunker.whole_chunks(reader) {
-        let chunk = chunk.unwrap();
-        stdout.write(chunk).unwrap();
-        stdout.write(b'\n').unwrap();
+#[cfg(test)]
+mod tests {
+    fn base() -> (Chunker<ZPAQ>, &'static [u8],
+                  Cursor<&'static [u8]>, &'static [u8]) {
+        let rollinghash = ZPAQ::new(3); // 8-bit chunk average
+        let chunker = Chunker::new(rollinghash);
+        let data = "abcdefghijklmnopqrstuvwxyz1234567890";
+        (chunker, data, Cursor::new(data), expected)
     }
 
-    // Read all the chunks at once
-    // Like using whole_chunks(...).collect() but also handles errors
-    let chunks: Vec<Vec<u8>> = chunker.all_chunks(reader).unwrap();
-    for chunk: Vec<u8> in chunks {
-        stdout.write(chunk).unwrap();
-        stdout.write(b'\n').unwrap();
-    }
+    #[test]
+    fn test_whole_chunks() {
+        let (chunker, _, reader, expected) = base();
+        let result = Vec::new();
 
-    // Zero-allocation by using a fixed-size internal buffer
-    let mut chunk_iter = chunker.stream(reader);
-    while let Some(chunk) = chunk_iter.read() {
-        let chunk = chunk.unwrap();
-        match chunk {
-            ChunkInput::Data(d) => {
-                stdout.write(d).unwrap();
-            }
-            ChunkInput::End => stdout.write(b'\n').unwrap();
+        // Read whole chunks accumulated in vectors
+        for chunk: io::Result<Vec<u8>> in chunker.whole_chunks(reader) {
+            let chunk = chunk.unwrap();
+            result.extend(chunk);
+            result.push(b'|');
         }
+        assert_eq!(result, expected);
     }
 
-    // Get slices from an in-memory buffer holding the whole input
-    let input = {
-        let mut buf = Vec::new();
-        reader.read_to_end(&mut buf).unwrap();
-        buf
-    };
-    for slice: &[u8] in chunker.slices(buf) {
-        stdout.write(slice).unwrap();
-        stdout.write(b'\n').unwrap();
+    #[test]
+    fn test_all_chunks() {
+        let (chunker, _, reader, expected) = base();
+        let result = Vec::new();
+
+        // Read all the chunks at once
+        // Like using whole_chunks(...).collect() but also handles errors
+        let chunks: Vec<Vec<u8>> = chunker.all_chunks(reader).unwrap();
+        for chunk: Vec<u8> in chunks {
+            result.extend(chunk);
+            result.push(b'|');
+        }
+        assert_eq!(result, expected);
     }
 
-    // Get chunk positions
-    for chunk_info in chunker.chunks(buf) {
-        stdout.write(buf[chunk_info.start..(chunk_info.start +
-                                            chunk_info.length)]).unwrap();
-        stdout.write(b'\n').unwrap();
+    #[test]
+    fn test_stream() {
+        let (chunker, _, reader, expected) = base();
+        let result = Vec::new();
+
+        // Zero-allocation by using a fixed-size internal buffer
+        let mut chunk_iter = chunker.stream(reader);
+        while let Some(chunk) = chunk_iter.read() {
+            let chunk = chunk.unwrap();
+            match chunk {
+                ChunkInput::Data(d) => {
+                    result.extend(d);
+                }
+                ChunkInput::End => result.push(b'|'),
+            }
+        }
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_slices() {
+        let (chunker, data, _, expected) = base();
+        let result = Vec::new();
+
+        // Get slices from an in-memory buffer holding the whole input
+        for slice: &[u8] in chunker.slices(data) {
+            result.extend(slice);
+            result.push(b'|');
+        }
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_chunks() {
+        let (chunker, data, reader, expected) = base();
+        let result = Vec::new();
+
+        // Get chunk positions
+        for chunk_info in chunker.chunks(reader) {
+            let chunk_info = chunk_info.unwrap();
+            result.extend(&data[chunk_info.start..(chunk_info.start +
+                                                   chunk_info.length)]);
+            result.push(b'|');
+        }
+        assert_eq!(result, expected);
     }
 }
