@@ -223,6 +223,7 @@ impl ChunkerImpl for ZPAQ {
 mod tests {
     use ::{Chunker, ChunkInput, ZPAQ};
     use std::io::Cursor;
+    use std::str::from_utf8;
 
     fn base() -> (Chunker<ZPAQ>, &'static [u8],
                   Cursor<&'static [u8]>, &'static [u8]) {
@@ -244,7 +245,8 @@ mod tests {
             result.extend(chunk);
             result.push(b'|');
         }
-        assert_eq!(result, expected);
+        assert_eq!(from_utf8(&result).unwrap(),
+                   from_utf8(&expected).unwrap());
     }
 
     #[test]
@@ -259,7 +261,8 @@ mod tests {
             result.extend(chunk);
             result.push(b'|');
         }
-        assert_eq!(result, expected);
+        assert_eq!(from_utf8(&result).unwrap(),
+                   from_utf8(&expected).unwrap());
     }
 
     #[test]
@@ -278,7 +281,8 @@ mod tests {
                 ChunkInput::End => result.push(b'|'),
             }
         }
-        assert_eq!(result, expected);
+        assert_eq!(from_utf8(&result).unwrap(),
+                   from_utf8(&expected).unwrap());
     }
 
     #[test]
@@ -291,7 +295,8 @@ mod tests {
             result.extend(slice);
             result.push(b'|');
         }
-        assert_eq!(result, expected);
+        assert_eq!(from_utf8(&result).unwrap(),
+                   from_utf8(&expected).unwrap());
     }
 
     #[test]
@@ -305,6 +310,7 @@ mod tests {
             result.extend(&data[chunk_info.start()..chunk_info.end()]);
             result.push(b'|');
         }
-        assert_eq!(result, expected);
+        assert_eq!(from_utf8(&result).unwrap(),
+                   from_utf8(&expected).unwrap());
     }
 }
