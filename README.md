@@ -35,7 +35,7 @@ let chunker = Chunker::new(ZPAQ::new(13)); // 13 bits = 8 KiB block average
 
 There are multiple way to get chunks out of some input data.
 
-## From an in-memory buffer: iterate on slices
+### From an in-memory buffer: iterate on slices
 
 If your whole input data is in memory at once, you can use the `slices()` method. It will return an iterator on slices of this buffer, allowing to handle those chunks with no additional allocation.
 
@@ -45,7 +45,7 @@ for slice in chunker.slices(data) {
 }
 ```
 
-## From a file object: read chunks into memory
+### From a file object: read chunks into memory
 
 If you are reading from a file, or any object that implements `Read`, you can use `Chunker` to read whole chunks directly. Use the `whole_chunks()` method to get an iterator on chunks, read as new `Vec<u8>` objects.
 
@@ -66,7 +66,7 @@ for chunk in chunks {
 }
 ```
 
-## From a file object: streaming chunks with zero allocation
+### From a file object: streaming chunks with zero allocation
 
 If you are reading from a file to write to another, you might deem the allocation of intermediate `Vec` objects unnecessary. If you want, you can have `Chunker` provide you chunks data from the internal read buffer, without allocating anything else. In that case, note that a chunk might be split between multiple read operations. This method will work fine with any chunk sizes.
 
