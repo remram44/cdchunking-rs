@@ -14,6 +14,9 @@ use std::num::Wrapping;
 pub trait ChunkerImpl {
     /// Look at the new bytes to maybe find a boundary.
     fn find_boundary(&mut self, data: &[u8]) -> Option<usize>;
+
+    /// Reset the internal state after a chunk has been emitted
+    fn reset(&mut self) {}
 }
 
 #[cfg(not(test))]
