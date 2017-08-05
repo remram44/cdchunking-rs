@@ -62,7 +62,7 @@ impl<I: ChunkerImpl> Chunker<I> {
             buffer: [0u8; BUF_SIZE],
             pos: 0,
             len: 0,
-            chunk_emitted: false,
+            status: EmitStatus::Data,
         }
     }
 
@@ -74,10 +74,10 @@ impl<I: ChunkerImpl> Chunker<I> {
         }
     }
 
-    pub fn slices(self, buffer: &[u8]) -> Slices {
+    pub fn slices(self, buffer: &[u8]) -> Slices<I> {
         Slices {
+            inner: self.inner,
             buffer: buffer,
-            last_chunk: 0,
             pos: 0,
         }
     }
@@ -112,13 +112,21 @@ pub enum ChunkInput<'a> {
     End,
 }
 
+#[derive(PartialEq, Eq)]
+enum EmitStatus {
+    End, // We didn't emit any Data since the last End
+    Data, // We have been emitting data
+    AtSplit, // We found the end of a chunk, emitted the Data but not the End
+}
+
 pub struct ChunkStream<R: Read, I: ChunkerImpl> {
     reader: R,
     inner: I,
     buffer: [u8; BUF_SIZE],
-    pos: usize,
-    len: usize,
-    chunk_emitted: bool,
+    len: usize, // How much of the buffer has been read in from the reader
+    pos: usize, // Where are we in handling the buffer
+    status: EmitStatus,
+
 }
 
 impl<R: Read, I: ChunkerImpl> ChunkStream<R, I> {
@@ -130,7 +138,38 @@ impl<R: Read, I: ChunkerImpl> ChunkStream<R, I> {
     /// `End` is always returned at the end of the last chunk.
     // Can't be Iterator because of 'a
     pub fn read<'a>(&'a mut self) -> Option<io::Result<ChunkInput<'a>>> {
-        unimplemented!() // TODO: Get from dhstore's chunker
+        if self.pos == self.len {
+            assert!(self.status != EmitStatus::AtSplit);
+            self.pos = 0;
+            self.len = match self.reader.read(&mut self.buffer) {
+                Ok(l) => l,
+                Err(e) => return Some(Err(e)),
+            };
+            if self.len == 0 {
+                if self.status == EmitStatus::Data {
+                    self.status = EmitStatus::End;
+                    return Some(Ok(ChunkInput::End));
+                }
+                return None;
+            }
+        }
+        if self.status == EmitStatus::AtSplit {
+            self.status = EmitStatus::End;
+            self.inner.reset();
+            return Some(Ok(ChunkInput::End));
+        }
+        if let Some(split) = self.inner.find_boundary(
+            &self.buffer[self.pos..self.len])
+        {
+            self.status = EmitStatus::AtSplit;
+            let start = self.pos;
+            self.pos += split + 1;
+            return Some(Ok(ChunkInput::Data(&self.buffer[start..self.pos])));
+        }
+        let start = self.pos;
+        self.pos = self.len;
+        self.status = EmitStatus::Data;
+        Some(Ok(ChunkInput::Data(&self.buffer[start..self.len])))
     }
 }
 
@@ -179,17 +218,32 @@ impl<R: Read, I: ChunkerImpl> Iterator for ChunkInfoStream<R, I> {
     }
 }
 
-pub struct Slices<'a> {
+pub struct Slices<'a, I: ChunkerImpl> {
+    inner: I,
     buffer: &'a [u8],
-    last_chunk: usize,
     pos: usize,
 }
 
-impl<'a> Iterator for Slices<'a> {
+impl<'a, I: ChunkerImpl> Iterator for Slices<'a, I> {
     type Item = &'a [u8];
 
     fn next(&mut self) -> Option<&'a [u8]> {
-        unimplemented!() // TODO: Different implementation here, don't use another buffer
+        if self.pos == self.buffer.len() {
+            None
+        } else {
+            if let Some(split) = self.inner.find_boundary(
+                &self.buffer[self.pos..])
+            {
+                let start = self.pos;
+                self.pos += split + 1;
+                self.inner.reset();
+                Some(&self.buffer[start..self.pos])
+            } else {
+                let start = self.pos;
+                self.pos = self.buffer.len();
+                Some(&self.buffer[start..])
+            }
+        }
     }
 }
 
@@ -205,17 +259,45 @@ pub struct ZPAQ {
 impl ZPAQ {
     pub fn new(nbits: usize) -> ZPAQ {
         ZPAQ {
-            nbits: nbits,
+            nbits: 32 - nbits,
             c1: 0,
             o1: [0; 256],
             h: HM,
         }
     }
+
+    pub fn update(&mut self, byte: u8) -> bool {
+        if byte == self.o1[self.c1 as usize] {
+            self.h = self.h * HM + Wrapping(byte as u32 + 1);
+        } else {
+            self.h = self.h * HM * Wrapping(2) + Wrapping(byte as u32 + 1);
+        }
+        self.o1[self.c1 as usize] = byte;
+        self.c1 = byte;
+
+        self.h.0 < (1 << self.nbits)
+    }
 }
 
 impl ChunkerImpl for ZPAQ {
     fn find_boundary(&mut self, data: &[u8]) -> Option<usize> {
-        unimplemented!() // TODO: Get from dhstore's chunker
+        println!("find_boundary({:?})", std::str::from_utf8(data).unwrap());
+        let mut pos = 0;
+        while pos < data.len() {
+            if self.update(data[pos]) {
+                println!("  = {}", pos);
+                return Some(pos);
+            }
+
+            pos += 1;
+        }
+        None
+    }
+
+    fn reset(&mut self) {
+        self.c1 = 0u8;
+        self.o1.clone_from_slice(&[0u8; 256]);
+        self.h = HM;
     }
 }
 
