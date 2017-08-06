@@ -401,11 +401,9 @@ impl ZPAQ {
 
 impl ChunkerImpl for ZPAQ {
     fn find_boundary(&mut self, data: &[u8]) -> Option<usize> {
-        println!("find_boundary({:?})", std::str::from_utf8(data).unwrap());
         let mut pos = 0;
         while pos < data.len() {
             if self.update(data[pos]) {
-                println!("  = {}", pos);
                 return Some(pos);
             }
 
