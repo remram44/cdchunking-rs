@@ -281,6 +281,7 @@ impl<R: Read, I: ChunkerImpl> ChunkStream<R, I> {
         if let Some(split) = self.inner.find_boundary(
             &self.buffer[self.pos..self.len])
         {
+            assert!(self.pos + split < self.len);
             self.status = EmitStatus::AtSplit;
             let start = self.pos;
             self.pos += split + 1;
@@ -354,6 +355,7 @@ impl<'a, I: ChunkerImpl> Iterator for Slices<'a, I> {
             if let Some(split) = self.inner.find_boundary(
                 &self.buffer[self.pos..])
             {
+                assert!(self.pos + split < self.buffer.len());
                 let start = self.pos;
                 self.pos += split + 1;
                 self.inner.reset();
