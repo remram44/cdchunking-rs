@@ -73,7 +73,7 @@
 //!
 //! You can also read all the chunks from the file and collect them in a `Vec`
 //! (of `Vec`s) using the `all_chunks()` method. It will take care of the IO
-//! errors for you, returning an error if any of the chunks fail to read.
+//! errors for you, returning an error if any of the chunks failed to read.
 //!
 //! ```
 //! # use cdchunking::{Chunker, ZPAQ};
@@ -154,6 +154,7 @@ impl<I: ChunkerImpl> Chunker<I> {
         }
     }
 
+    /// Iterates on whole chunks from a file, read into new vectors.
     pub fn whole_chunks<R: Read>(self, reader: R) -> WholeChunks<R, I> {
         WholeChunks {
             stream: self.stream(reader),
@@ -161,6 +162,10 @@ impl<I: ChunkerImpl> Chunker<I> {
         }
     }
 
+    /// Reads all the chunks at once, in a vector of chunks (also vectors).
+    ///
+    /// This is similar to `.whole_chunks().collect()`, but takes care of the IO
+    /// errors, returning an error if any of the chunks failed to read.
     pub fn all_chunks<R: Read>(self, reader: R)
         -> io::Result<Vec<Vec<u8>>>
     {
@@ -174,6 +179,32 @@ impl<I: ChunkerImpl> Chunker<I> {
         Ok(chunks)
     }
 
+    /// Reads chunks with zero allocations.
+    ///
+    /// This streaming iterator provides you with the chunk from an internal
+    /// buffer that gets reused, instead of allowing memory to hold each chunk.
+    /// This is very memory efficient, even if reading large chunks from a
+    /// large file (you will get chunks in multiple parts). Unfortunately
+    /// because the buffer gets reused, you have to use a while loop; `Iterator`
+    /// cannot be implemented.
+    ///
+    /// Example:
+    ///
+    /// ```
+    /// # use cdchunking::{Chunker, ChunkInput, ZPAQ};
+    /// # let chunker = Chunker::new(ZPAQ::new(13));
+    /// # let reader: &[u8] = b"abcdefghijklmnopqrstuvwxyz1234567890";
+    /// let mut chunk_iterator = chunker.stream(reader);
+    /// while let Some(chunk) = chunk_iterator.read() {
+    ///     let chunk = chunk.unwrap();
+    ///     match chunk {
+    ///         ChunkInput::Data(d) => {
+    ///             print!("{:?}, ", d);
+    ///         }
+    ///         ChunkInput::End => println!(" end of chunk"),
+    ///     }
+    /// }
+    /// ```
     pub fn stream<R: Read>(self, reader: R) -> ChunkStream<R, I> {
         ChunkStream {
             reader: reader,
@@ -185,6 +216,11 @@ impl<I: ChunkerImpl> Chunker<I> {
         }
     }
 
+    /// Describes the chunks (don't return the data).
+    ///
+    /// This iterator gives you the offset and size of the chunks, but not the
+    /// data in them. If you want to iterate on the data in the chunks in an
+    /// easy way, use the `whole_chunks()` method.
     pub fn chunks<R: Read>(self, reader: R) -> ChunkInfoStream<R, I> {
         ChunkInfoStream {
             stream: self.stream(reader),
@@ -193,6 +229,11 @@ impl<I: ChunkerImpl> Chunker<I> {
         }
     }
 
+    /// Iterate on chunks in an in-memory buffer as slices.
+    ///
+    /// If your data is already in memory, you can use this method instead of
+    /// `whole_chunks()` to get slices referencing the buffer rather than
+    /// copying it to new vectors.
     pub fn slices(self, buffer: &[u8]) -> Slices<I> {
         Slices {
             inner: self.inner,
@@ -201,6 +242,12 @@ impl<I: ChunkerImpl> Chunker<I> {
         }
     }
 
+    /// Returns a new `Chunker` object that will not go over a size limit.
+    ///
+    /// Note that the inner chunking method IS reset when a chunk boundary is
+    /// emitted because of the size limit. That means that using a size limit
+    /// will not only add new boundary, inside of blocks too big, it might cause
+    /// the boundary after such a one to not happen anymore.
     pub fn max_size(self, max: usize) -> Chunker<SizeLimited<I>> {
         assert!(max > 0);
         Chunker {

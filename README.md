@@ -56,7 +56,7 @@ for chunk in chunker.whole_chunks(reader) {
 }
 ```
 
-You can also read all the chunks from the file and collect them in a `Vec` (of `Vec`s) using the `all_chunks()` method. It will take care of the IO errors for you, returning an error if any of the chunks fail to read.
+You can also read all the chunks from the file and collect them in a `Vec` (of `Vec`s) using the `all_chunks()` method. It will take care of the IO errors for you, returning an error if any of the chunks failed to read.
 
 ```rust
 let chunks: Vec<Vec<u8>> = chunker.all_chunks(reader)
