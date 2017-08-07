@@ -149,7 +149,9 @@ pub struct Chunker<I: ChunkerImpl> {
 impl<I: ChunkerImpl> Chunker<I> {
     /// Create a Chunker from a specific way of finding chunk boundaries.
     pub fn new(inner: I) -> Chunker<I> {
-        Chunker { inner: inner }
+        Chunker {
+            inner: inner,
+        }
     }
 
     pub fn whole_chunks<R: Read>(self, reader: R) -> WholeChunks<R, I> {
@@ -196,6 +198,17 @@ impl<I: ChunkerImpl> Chunker<I> {
             inner: self.inner,
             buffer: buffer,
             pos: 0,
+        }
+    }
+
+    pub fn max_size(self, max: usize) -> Chunker<SizeLimited<I>> {
+        assert!(max > 0);
+        Chunker {
+            inner: SizeLimited {
+                inner: self.inner,
+                pos: 0,
+                max_size: max,
+            }
         }
     }
 }
@@ -369,6 +382,47 @@ impl<'a, I: ChunkerImpl> Iterator for Slices<'a, I> {
     }
 }
 
+pub struct SizeLimited<I: ChunkerImpl> {
+    inner: I,
+    pos: usize,
+    max_size: usize,
+}
+
+impl<I: ChunkerImpl> ChunkerImpl for SizeLimited<I> {
+    fn find_boundary(&mut self, data: &[u8]) -> Option<usize> {
+        assert!(self.max_size > self.pos);
+        let left = self.max_size - self.pos;
+        if left == 1 {
+            Some(0)
+        } else {
+            let slice = if data.len() > left {
+                &data[..(left - 1)]
+            } else {
+                data
+            };
+            match self.inner.find_boundary(slice) {
+                Some(p) => {
+                    self.pos += p;
+                    Some(p)
+                }
+                None => {
+                    self.pos += slice.len();
+                    if data.len() > left {
+                        Some(left - 1)
+                    } else {
+                        None
+                    }
+                }
+            }
+        }
+    }
+
+    fn reset(&mut self) {
+        self.pos = 0;
+        self.inner.reset();
+    }
+}
+
 const HM: Wrapping<u32> = Wrapping(123456791);
 
 pub struct ZPAQ {
@@ -503,16 +557,34 @@ mod tests {
 
     #[test]
     fn test_chunks() {
-        let (chunker, data, reader, expected) = base();
+        let (chunker, _, reader, _) = base();
         let mut result = Vec::new();
 
         // Get chunk positions
         for chunk_info in chunker.chunks(reader) {
             let chunk_info = chunk_info.unwrap();
-            result.extend(&data[chunk_info.start()..chunk_info.end()]);
-            result.push(b'|');
+            result.push((chunk_info.start(), chunk_info.length()));
         }
-        assert_eq!(from_utf8(&result).unwrap(),
-                   from_utf8(&expected).unwrap());
+        assert_eq!(result,
+                   vec![(0, 11), (11, 4), (15, 2),
+                        (17, 6), (23, 6), (29, 7)]);
+    }
+
+    #[test]
+    fn test_max_size() {
+        let (chunker, _, reader, _) = base();
+        let mut result = Vec::new();
+
+        // Get chunk positions
+        for chunk_info in chunker.max_size(5).chunks(reader) {
+            let chunk_info = chunk_info.unwrap();
+            result.push((chunk_info.start(), chunk_info.length()));
+        }
+        // Note that some previous block boundaries are not here (11, 23, 29)
+        // It is because the ZPAQ state is reset when we hit the maximum length
+        // too.
+        assert_eq!(result,
+                   vec![(0, 5), (5, 5), (10, 5), (15, 2),
+                        (17, 5), (22, 5), (27, 3), (30, 5), (35, 1)]);
     }
 }
