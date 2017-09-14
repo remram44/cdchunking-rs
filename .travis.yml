@@ -4,10 +4,10 @@ rust:
   - beta
   - nightly
 sudo: false
-script:
-  - cargo build --verbose
-  - cargo test --verbose
-  - cargo doc
+script: |
+  cargo build --verbose && \
+  cargo test --verbose && \
+  cargo doc
 after_success: |
   [ $TRAVIS_BRANCH = master ] &&
   [ $TRAVIS_RUST_VERSION = nightly ] &&
