@@ -17,7 +17,7 @@ Using this crate
 First, add a dependency on this crate by adding the following to your `Cargo.toml`:
 
 ```
-cdchunking = 0.1
+cdchunking = 0.2
 ```
 
 And your `lib.rs`:
