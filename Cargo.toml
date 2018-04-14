@@ -1,6 +1,6 @@
 [package]
 name = "cdchunking"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Remi Rampin <remirampin@gmail.com>"]
 description = "Content-defined chunking"
 documentation = "https://remram44.github.io/cdchunking-rs/index.html"
