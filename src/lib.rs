@@ -438,23 +438,26 @@ pub struct SizeLimited<I: ChunkerImpl> {
 impl<I: ChunkerImpl> ChunkerImpl for SizeLimited<I> {
     fn find_boundary(&mut self, data: &[u8]) -> Option<usize> {
         assert!(self.max_size > self.pos);
+        if data.len() == 0 {
+            return None;
+        }
         let left = self.max_size - self.pos;
         if left == 1 {
             Some(0)
         } else {
             let slice = if data.len() > left {
-                &data[..(left - 1)]
+                &data[..left]
             } else {
                 data
             };
             match self.inner.find_boundary(slice) {
                 Some(p) => {
-                    self.pos += p;
+                    self.pos += p + 1;
                     Some(p)
                 }
                 None => {
                     self.pos += slice.len();
-                    if data.len() > left {
+                    if data.len() >= left {
                         Some(left - 1)
                     } else {
                         None
