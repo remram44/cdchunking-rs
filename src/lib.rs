@@ -115,6 +115,9 @@
 //! }
 //! ```
 
+#[cfg(test)]
+extern crate rand;
+
 use std::io::{self, Read};
 use std::mem::swap;
 use std::num::Wrapping;
@@ -527,17 +530,18 @@ impl ChunkerImpl for ZPAQ {
 
 #[cfg(test)]
 mod tests {
+    use rand::{self, Rng};
     use ::{Chunker, ChunkInput, ZPAQ};
-    use std::io::Cursor;
+    use std::io::{self, Read};
     use std::str::from_utf8;
 
     fn base() -> (Chunker<ZPAQ>, &'static [u8],
-                  Cursor<&'static [u8]>, &'static [u8]) {
+                  io::Cursor<&'static [u8]>, &'static [u8]) {
         let rollinghash = ZPAQ::new(3); // 8-bit chunk average
         let chunker = Chunker::new(rollinghash);
         let data = b"defghijklmnopqrstuvwxyz1234567890";
         let expected = b"def|ghijk|lmno|pq|rstuvw|xyz123|4567890|";
-        (chunker, data, Cursor::new(data), expected)
+        (chunker, data, io::Cursor::new(data), expected)
     }
 
     #[test]
@@ -636,5 +640,29 @@ mod tests {
         assert_eq!(result,
                    vec![(0, 3), (3, 5), (8, 4), (12, 2),
                         (14, 5), (19, 5), (24, 3), (27, 5), (32, 1)]);
+    }
+
+    struct RngFile<R: Rng>(R);
+
+    impl<R: Rng> Read for RngFile<R> {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            self.0.fill_bytes(buf);
+            Ok(buf.len())
+        }
+    }
+
+    #[test]
+    fn test_random() {
+        let mut count = 0;
+        let chunker = Chunker::new(ZPAQ::new(8));
+
+        let random = RngFile(rand::thread_rng());
+
+        for chunk in chunker.whole_chunks(random) {
+            count += 1;
+            if count >= 4096 {
+                break;
+            }
+        }
     }
 }

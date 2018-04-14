@@ -10,3 +10,6 @@ keywords = ["chunks", "cdc", "content", "defined", "chunking"]
 license = "MIT"
 
 [dependencies]
+
+[dev-dependencies]
+rand = "0.4"
