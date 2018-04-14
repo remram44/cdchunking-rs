@@ -535,8 +535,8 @@ mod tests {
                   Cursor<&'static [u8]>, &'static [u8]) {
         let rollinghash = ZPAQ::new(3); // 8-bit chunk average
         let chunker = Chunker::new(rollinghash);
-        let data = b"abcdefghijklmnopqrstuvwxyz1234567890";
-        let expected = b"abcdefghijk|lmno|pq|rstuvw|xyz123|4567890|";
+        let data = b"defghijklmnopqrstuvwxyz1234567890";
+        let expected = b"def|ghijk|lmno|pq|rstuvw|xyz123|4567890|";
         (chunker, data, Cursor::new(data), expected)
     }
 
@@ -616,8 +616,8 @@ mod tests {
             result.push((chunk_info.start(), chunk_info.length()));
         }
         assert_eq!(result,
-                   vec![(0, 11), (11, 4), (15, 2),
-                        (17, 6), (23, 6), (29, 7)]);
+                   vec![(0, 3), (3, 5), (8, 4), (12, 2),
+                        (14, 6), (20, 6), (26, 7)]);
     }
 
     #[test]
@@ -634,7 +634,7 @@ mod tests {
         // It is because the ZPAQ state is reset when we hit the maximum length
         // too.
         assert_eq!(result,
-                   vec![(0, 5), (5, 5), (10, 5), (15, 2),
-                        (17, 5), (22, 5), (27, 3), (30, 5), (35, 1)]);
+                   vec![(0, 3), (3, 5), (8, 4), (12, 2),
+                        (14, 5), (19, 5), (24, 3), (27, 5), (32, 1)]);
     }
 }
