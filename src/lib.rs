@@ -318,6 +318,11 @@ impl<R: Read, I: ChunkerImpl> ChunkStream<R, I> {
     /// `End` is always returned at the end of the last chunk.
     // Can't be Iterator because of 'a
     pub fn read<'a>(&'a mut self) -> Option<io::Result<ChunkInput<'a>>> {
+        if self.status == EmitStatus::AtSplit {
+            self.status = EmitStatus::End;
+            self.inner.reset();
+            return Some(Ok(ChunkInput::End));
+        }
         if self.pos == self.len {
             assert!(self.status != EmitStatus::AtSplit);
             self.pos = 0;
@@ -332,11 +337,6 @@ impl<R: Read, I: ChunkerImpl> ChunkStream<R, I> {
                 }
                 return None;
             }
-        }
-        if self.status == EmitStatus::AtSplit {
-            self.status = EmitStatus::End;
-            self.inner.reset();
-            return Some(Ok(ChunkInput::End));
         }
         if let Some(split) = self.inner.find_boundary(
             &self.buffer[self.pos..self.len])
