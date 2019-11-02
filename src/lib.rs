@@ -155,7 +155,7 @@ impl<I: ChunkerImpl> Chunker<I> {
     /// Create a Chunker from a specific way of finding chunk boundaries.
     pub fn new(inner: I) -> Chunker<I> {
         Chunker {
-            inner: inner,
+            inner,
         }
     }
 
@@ -212,7 +212,7 @@ impl<I: ChunkerImpl> Chunker<I> {
     /// ```
     pub fn stream<R: Read>(self, reader: R) -> ChunkStream<R, I> {
         ChunkStream {
-            reader: reader,
+            reader,
             inner: self.inner,
             buffer: [0u8; BUF_SIZE],
             pos: 0,
@@ -242,7 +242,7 @@ impl<I: ChunkerImpl> Chunker<I> {
     pub fn slices(self, buffer: &[u8]) -> Slices<I> {
         Slices {
             inner: self.inner,
-            buffer: buffer,
+            buffer,
             pos: 0,
         }
     }
@@ -395,7 +395,7 @@ impl<R: Read, I: ChunkerImpl> Iterator for ChunkInfoStream<R, I> {
                 Ok(ChunkInput::End) => {
                     let start = self.last_chunk;
                     self.last_chunk = self.pos;
-                    return Some(Ok(ChunkInfo { start: start,
+                    return Some(Ok(ChunkInfo { start,
                                                length: self.pos - start }));
                 }
             }
@@ -416,20 +416,18 @@ impl<'a, I: ChunkerImpl> Iterator for Slices<'a, I> {
     fn next(&mut self) -> Option<&'a [u8]> {
         if self.pos == self.buffer.len() {
             None
-        } else {
-            if let Some(split) = self.inner.find_boundary(
+        } else if let Some(split) = self.inner.find_boundary(
                 &self.buffer[self.pos..])
-            {
-                assert!(self.pos + split < self.buffer.len());
-                let start = self.pos;
-                self.pos += split + 1;
-                self.inner.reset();
-                Some(&self.buffer[start..self.pos])
-            } else {
-                let start = self.pos;
-                self.pos = self.buffer.len();
-                Some(&self.buffer[start..])
-            }
+        {
+            assert!(self.pos + split < self.buffer.len());
+            let start = self.pos;
+            self.pos += split + 1;
+            self.inner.reset();
+            Some(&self.buffer[start..self.pos])
+        } else {
+            let start = self.pos;
+            self.pos = self.buffer.len();
+            Some(&self.buffer[start..])
         }
     }
 }
@@ -443,7 +441,7 @@ pub struct SizeLimited<I: ChunkerImpl> {
 impl<I: ChunkerImpl> ChunkerImpl for SizeLimited<I> {
     fn find_boundary(&mut self, data: &[u8]) -> Option<usize> {
         assert!(self.max_size > self.pos);
-        if data.len() == 0 {
+        if data.is_empty() {
             return None;
         }
         let left = self.max_size - self.pos;
@@ -478,7 +476,7 @@ impl<I: ChunkerImpl> ChunkerImpl for SizeLimited<I> {
     }
 }
 
-const HM: Wrapping<u32> = Wrapping(123456791);
+const HM: Wrapping<u32> = Wrapping(123_456_791);
 
 pub struct ZPAQ {
     nbits: usize,
@@ -660,7 +658,7 @@ mod tests {
 
         let random = RngFile(rand::thread_rng());
 
-        for chunk in chunker.whole_chunks(random) {
+        for _chunk in chunker.whole_chunks(random) {
             count += 1;
             if count >= 4096 {
                 break;
