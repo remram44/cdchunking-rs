@@ -154,9 +154,7 @@ pub struct Chunker<I: ChunkerImpl> {
 impl<I: ChunkerImpl> Chunker<I> {
     /// Create a Chunker from a specific way of finding chunk boundaries.
     pub fn new(inner: I) -> Chunker<I> {
-        Chunker {
-            inner,
-        }
+        Chunker { inner }
     }
 
     /// Iterates on whole chunks from a file, read into new vectors.
@@ -171,14 +169,12 @@ impl<I: ChunkerImpl> Chunker<I> {
     ///
     /// This is similar to `.whole_chunks().collect()`, but takes care of the IO
     /// errors, returning an error if any of the chunks failed to read.
-    pub fn all_chunks<R: Read>(self, reader: R)
-        -> io::Result<Vec<Vec<u8>>>
-    {
+    pub fn all_chunks<R: Read>(self, reader: R) -> io::Result<Vec<Vec<u8>>> {
         let mut chunks = Vec::new();
         for chunk in self.whole_chunks(reader) {
             match chunk {
                 Ok(chunk) => chunks.push(chunk),
-                Err(e) => return Err(e)
+                Err(e) => return Err(e),
             }
         }
         Ok(chunks)
@@ -260,7 +256,7 @@ impl<I: ChunkerImpl> Chunker<I> {
                 inner: self.inner,
                 pos: 0,
                 max_size: max,
-            }
+            },
         }
     }
 }
@@ -299,8 +295,8 @@ pub enum ChunkInput<'a> {
 
 #[derive(PartialEq, Eq)]
 enum EmitStatus {
-    End, // We didn't emit any Data since the last End
-    Data, // We have been emitting data
+    End,     // We didn't emit any Data since the last End
+    Data,    // We have been emitting data
     AtSplit, // We found the end of a chunk, emitted the Data but not the End
 }
 
@@ -311,7 +307,6 @@ pub struct ChunkStream<R: Read, I: ChunkerImpl> {
     len: usize, // How much of the buffer has been read in from the reader
     pos: usize, // Where are we in handling the buffer
     status: EmitStatus,
-
 }
 
 impl<R: Read, I: ChunkerImpl> ChunkStream<R, I> {
@@ -343,8 +338,8 @@ impl<R: Read, I: ChunkerImpl> ChunkStream<R, I> {
                 return None;
             }
         }
-        if let Some(split) = self.inner.find_boundary(
-            &self.buffer[self.pos..self.len])
+        if let Some(split) =
+            self.inner.find_boundary(&self.buffer[self.pos..self.len])
         {
             assert!(self.pos + split < self.len);
             self.status = EmitStatus::AtSplit;
@@ -395,8 +390,10 @@ impl<R: Read, I: ChunkerImpl> Iterator for ChunkInfoStream<R, I> {
                 Ok(ChunkInput::End) => {
                     let start = self.last_chunk;
                     self.last_chunk = self.pos;
-                    return Some(Ok(ChunkInfo { start,
-                                               length: self.pos - start }));
+                    return Some(Ok(ChunkInfo {
+                        start,
+                        length: self.pos - start,
+                    }));
                 }
             }
         }
@@ -416,8 +413,8 @@ impl<'a, I: ChunkerImpl> Iterator for Slices<'a, I> {
     fn next(&mut self) -> Option<&'a [u8]> {
         if self.pos == self.buffer.len() {
             None
-        } else if let Some(split) = self.inner.find_boundary(
-                &self.buffer[self.pos..])
+        } else if let Some(split) =
+            self.inner.find_boundary(&self.buffer[self.pos..])
         {
             assert!(self.pos + split < self.buffer.len());
             let start = self.pos;
@@ -531,12 +528,17 @@ impl ChunkerImpl for ZPAQ {
 #[cfg(test)]
 mod tests {
     use rand::{self, Rng};
-    use ::{Chunker, ChunkInput, ZPAQ};
     use std::io::{self, Read};
     use std::str::from_utf8;
 
-    fn base() -> (Chunker<ZPAQ>, &'static [u8],
-                  io::Cursor<&'static [u8]>, &'static [u8]) {
+    use crate::{ChunkInput, Chunker, ZPAQ};
+
+    fn base() -> (
+        Chunker<ZPAQ>,
+        &'static [u8],
+        io::Cursor<&'static [u8]>,
+        &'static [u8],
+    ) {
         let rollinghash = ZPAQ::new(3); // 8-bit chunk average
         let chunker = Chunker::new(rollinghash);
         let data = b"defghijklmnopqrstuvwxyz1234567890";
@@ -555,8 +557,10 @@ mod tests {
             result.extend(chunk);
             result.push(b'|');
         }
-        assert_eq!(from_utf8(&result).unwrap(),
-                   from_utf8(&expected).unwrap());
+        assert_eq!(
+            from_utf8(&result).unwrap(),
+            from_utf8(&expected).unwrap(),
+        );
     }
 
     #[test]
@@ -571,8 +575,10 @@ mod tests {
             result.extend(chunk);
             result.push(b'|');
         }
-        assert_eq!(from_utf8(&result).unwrap(),
-                   from_utf8(&expected).unwrap());
+        assert_eq!(
+            from_utf8(&result).unwrap(),
+            from_utf8(&expected).unwrap(),
+        );
     }
 
     #[test]
@@ -591,8 +597,10 @@ mod tests {
                 ChunkInput::End => result.push(b'|'),
             }
         }
-        assert_eq!(from_utf8(&result).unwrap(),
-                   from_utf8(&expected).unwrap());
+        assert_eq!(
+            from_utf8(&result).unwrap(),
+            from_utf8(&expected).unwrap(),
+        );
     }
 
     #[test]
@@ -605,8 +613,10 @@ mod tests {
             result.extend(slice);
             result.push(b'|');
         }
-        assert_eq!(from_utf8(&result).unwrap(),
-                   from_utf8(&expected).unwrap());
+        assert_eq!(
+            from_utf8(&result).unwrap(),
+            from_utf8(&expected).unwrap(),
+        );
     }
 
     #[test]
@@ -619,9 +629,13 @@ mod tests {
             let chunk_info = chunk_info.unwrap();
             result.push((chunk_info.start(), chunk_info.length()));
         }
-        assert_eq!(result,
-                   vec![(0, 3), (3, 5), (8, 4), (12, 2),
-                        (14, 6), (20, 6), (26, 7)]);
+        assert_eq!(
+            result,
+            vec![
+                (0, 3), (3, 5), (8, 4), (12, 2),
+                (14, 6), (20, 6), (26, 7),
+            ],
+        );
     }
 
     #[test]
@@ -637,9 +651,13 @@ mod tests {
         // Note that some previous block boundaries are not here (11, 23, 29)
         // It is because the ZPAQ state is reset when we hit the maximum length
         // too.
-        assert_eq!(result,
-                   vec![(0, 3), (3, 5), (8, 4), (12, 2),
-                        (14, 5), (19, 5), (24, 3), (27, 5), (32, 1)]);
+        assert_eq!(
+            result,
+            vec![
+                (0, 3), (3, 5), (8, 4), (12, 2),
+                (14, 5), (19, 5), (24, 3), (27, 5), (32, 1),
+            ],
+        );
     }
 
     struct RngFile<R: Rng>(R);
