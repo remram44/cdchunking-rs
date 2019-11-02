@@ -115,6 +115,8 @@
 //! }
 //! ```
 
+#![forbid(unsafe_code)]
+
 #[cfg(test)]
 extern crate rand;
 
