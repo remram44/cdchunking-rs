@@ -1,5 +1,6 @@
 [![Build Status](https://travis-ci.org/remram44/cdchunking-rs.svg?branch=master)](https://travis-ci.org/remram44/cdchunking-rs/builds)
 [![Crates.io](https://img.shields.io/crates/v/cdchunking.svg)](https://crates.io/crates/cdchunking)
+[![Documentation](https://docs.rs/cdchunking/badge.svg)](https://docs.rs/cdchunking)
 [![Say Thanks!](https://img.shields.io/badge/Say%20Thanks-!-1EAEDB.svg)](https://saythanks.io/to/remram44)
 
 Content-Defined Chunking
