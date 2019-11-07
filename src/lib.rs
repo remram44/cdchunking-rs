@@ -559,7 +559,7 @@ mod tests {
         }
         assert_eq!(
             from_utf8(&result).unwrap(),
-            from_utf8(&expected).unwrap(),
+            from_utf8(&expected).unwrap()
         );
     }
 
@@ -577,7 +577,7 @@ mod tests {
         }
         assert_eq!(
             from_utf8(&result).unwrap(),
-            from_utf8(&expected).unwrap(),
+            from_utf8(&expected).unwrap()
         );
     }
 
@@ -599,7 +599,7 @@ mod tests {
         }
         assert_eq!(
             from_utf8(&result).unwrap(),
-            from_utf8(&expected).unwrap(),
+            from_utf8(&expected).unwrap()
         );
     }
 
@@ -615,7 +615,7 @@ mod tests {
         }
         assert_eq!(
             from_utf8(&result).unwrap(),
-            from_utf8(&expected).unwrap(),
+            from_utf8(&expected).unwrap()
         );
     }
 
@@ -634,7 +634,7 @@ mod tests {
             vec![
                 (0, 3), (3, 5), (8, 4), (12, 2),
                 (14, 6), (20, 6), (26, 7),
-            ],
+            ]
         );
     }
 
@@ -656,7 +656,7 @@ mod tests {
             vec![
                 (0, 3), (3, 5), (8, 4), (12, 2),
                 (14, 5), (19, 5), (24, 3), (27, 5), (32, 1),
-            ],
+            ]
         );
     }
 
