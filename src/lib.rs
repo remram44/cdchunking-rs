@@ -531,7 +531,7 @@ mod tests {
     use std::io::{self, Read};
     use std::str::from_utf8;
 
-    use crate::{ChunkInput, Chunker, ZPAQ};
+    use super::{ChunkInput, Chunker, ZPAQ};
 
     fn base() -> (
         Chunker<ZPAQ>,
