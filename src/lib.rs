@@ -676,11 +676,16 @@ mod tests {
 
         let random = RngFile(rand::thread_rng());
 
-        for _chunk in chunker.whole_chunks(random) {
+        let mut total_len = 0;
+
+        for chunk in chunker.whole_chunks(random) {
+            total_len += chunk.unwrap().len();
             count += 1;
             if count >= 4096 {
                 break;
             }
         }
+
+        assert!(240 * count <= total_len && total_len <= 270 * count);
     }
 }
