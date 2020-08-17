@@ -13,3 +13,5 @@ license = "MIT"
 
 [dev-dependencies]
 rand = "0.6"
+rand_core = "0.5"
+rand_pcg = "0.2"

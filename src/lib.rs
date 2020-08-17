@@ -119,6 +119,10 @@
 
 #[cfg(test)]
 extern crate rand;
+#[cfg(test)]
+extern crate rand_core;
+#[cfg(test)]
+extern crate rand_pcg;
 
 use std::io::{self, Read};
 use std::mem::swap;
@@ -636,6 +640,40 @@ mod tests {
                 (0, 2), (2, 13), (15, 13), (28, 5),
             ]
         );
+    }
+
+    #[test]
+    fn test_long_0() {
+        use rand_pcg::Pcg64;
+        use rand_core::RngCore;
+
+        let mut fill_rng = Pcg64::new(0, 0xa02bdbf7bb3c0a7ac28fa16a64abf96);
+        let mut buf = vec![0u8; 8192 * 4];
+        fill_rng.fill_bytes(&mut buf);
+        let chunker = Chunker::new(ZPAQ::new(13));
+        let mut result = Vec::new();
+        for chunk_info in chunker.chunks(io::Cursor::new(buf)) {
+            let chunk_info = chunk_info.unwrap();
+            result.push(chunk_info.length());
+        }
+        assert_eq!(result, vec![10785, 6329, 1287, 860, 4716, 7419]);
+    }
+
+    #[test]
+    fn test_long_3() {
+        use rand_pcg::Pcg64;
+        use rand_core::RngCore;
+
+        let mut fill_rng = Pcg64::new(3, 0xa02bdbf7bb3c0a7ac28fa16a64abf96);
+        let mut buf = vec![0u8; 8192 * 4];
+        fill_rng.fill_bytes(&mut buf);
+        let chunker = Chunker::new(ZPAQ::new(13));
+        let mut result = Vec::new();
+        for chunk_info in chunker.chunks(io::Cursor::new(buf)) {
+            let chunk_info = chunk_info.unwrap();
+            result.push(chunk_info.length());
+        }
+        assert_eq!(result, vec![16353, 2334, 970, 5326, 1557]);
     }
 
     #[test]
