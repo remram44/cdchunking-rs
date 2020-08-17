@@ -475,6 +475,14 @@ impl<I: ChunkerImpl> ChunkerImpl for SizeLimited<I> {
 
 const HM: Wrapping<u32> = Wrapping(123_456_791);
 
+/// ZPAQ-like chunking algorithm.
+///
+/// Note that this does NOT match the official implementation (the ZPAQ C++
+/// library). This functions the same way, but does not use the same specific
+/// sizes, and does not enforce chunk size limits (unless you use
+/// `Chunker::max_size()` explicitly). In addition, the constants used by this
+/// implementation are different; see
+/// [#6](https://github.com/remram44/cdchunking-rs/issues/6).
 pub struct ZPAQ {
     nbits: usize,
     c1: u8, // previous byte
