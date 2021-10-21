@@ -8,6 +8,7 @@ readme = "README.md"
 repository = "https://github.com/remram44/cdchunking-rs"
 keywords = ["chunks", "cdc", "content", "defined", "chunking"]
 license = "MIT"
+rust-version = "1.31"
 
 [dependencies]
 
