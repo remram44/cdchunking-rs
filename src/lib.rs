@@ -473,7 +473,8 @@ impl<I: ChunkerImpl> ChunkerImpl for SizeLimited<I> {
     }
 }
 
-const HM: Wrapping<u32> = Wrapping(123_456_791);
+const HM1: Wrapping<u32> = Wrapping(314_159_265);
+const HM2: Wrapping<u32> = Wrapping(271_828_182);
 
 /// ZPAQ-like chunking algorithm.
 ///
@@ -496,15 +497,15 @@ impl ZPAQ {
             nbits: 32 - nbits,
             c1: 0,
             o1: [0; 256],
-            h: HM,
+            h: Wrapping(0),
         }
     }
 
     pub fn update(&mut self, byte: u8) -> bool {
         if byte == self.o1[self.c1 as usize] {
-            self.h = self.h * HM + Wrapping(byte as u32 + 1);
+            self.h = HM1 * (self.h + Wrapping(byte as u32 + 1));
         } else {
-            self.h = self.h * HM * Wrapping(2) + Wrapping(byte as u32 + 1);
+            self.h = HM2 * (self.h + Wrapping(byte as u32 + 1));
         }
         self.o1[self.c1 as usize] = byte;
         self.c1 = byte;
@@ -529,7 +530,7 @@ impl ChunkerImpl for ZPAQ {
     fn reset(&mut self) {
         self.c1 = 0u8;
         self.o1.clone_from_slice(&[0u8; 256]);
-        self.h = HM;
+        self.h = Wrapping(0);
     }
 }
 
@@ -550,7 +551,7 @@ mod tests {
         let rollinghash = ZPAQ::new(3); // 8-bit chunk average
         let chunker = Chunker::new(rollinghash);
         let data = b"defghijklmnopqrstuvwxyz1234567890";
-        let expected = b"def|ghijk|lmno|pq|rstuvw|xyz123|4567890|";
+        let expected = b"de|fghijklmnopqr|stuvwxyz12345|67890|";
         (chunker, data, io::Cursor::new(data), expected)
     }
 
@@ -640,8 +641,7 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                (0, 3), (3, 5), (8, 4), (12, 2),
-                (14, 6), (20, 6), (26, 7),
+                (0, 2), (2, 13), (15, 13), (28, 5),
             ]
         );
     }
@@ -662,8 +662,8 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                (0, 3), (3, 5), (8, 4), (12, 2),
-                (14, 5), (19, 5), (24, 3), (27, 5), (32, 1),
+                (0, 2), (2, 5), (7, 5), (12, 2),
+                (14, 5), (19, 5), (24, 5), (29, 4),
             ]
         );
     }
