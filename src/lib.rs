@@ -135,6 +135,9 @@ use std::num::Wrapping;
 /// hash, etc).
 pub trait ChunkerImpl {
     /// Look at the new bytes to maybe find a boundary.
+    /// The boundary is an index within `data`, after which the cut-point is set.
+    /// I.e., a return value of `Some(0)` indicates that only the first byte of this block should be
+    /// included in the current chunk.
     fn find_boundary(&mut self, data: &[u8]) -> Option<usize>;
 
     /// Reset the internal state after a chunk has been emitted
@@ -429,6 +432,12 @@ impl<'a, I: ChunkerImpl> Iterator for Slices<'a, I> {
     }
 }
 
+/// A wrapper that limits the size of produced chunks.
+///
+/// Note that the inner chunking implementation is reset when a chunk boundary is
+/// emitted because of the size limit. This will generally reduce content-dependence,
+/// and thus deduplication ratio, because the boundary is set by size rather than by
+/// content.
 pub struct SizeLimited<I: ChunkerImpl> {
     inner: I,
     pos: usize,
