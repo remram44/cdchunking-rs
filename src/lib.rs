@@ -117,6 +117,18 @@
 
 #![forbid(unsafe_code)]
 
+mod ae;
+mod bfbc;
+mod mii;
+mod pci;
+mod ram;
+
+pub use ae::AEChunker;
+pub use bfbc::BFBCChunker;
+pub use mii::MIIChunker;
+pub use pci::{PCIChunker, PCIChunkerRunningPopcount};
+pub use ram::{MaybeOptimizedRAMChunker, RAMChunker};
+
 #[cfg(test)]
 extern crate rand;
 
@@ -135,6 +147,9 @@ use std::num::Wrapping;
 /// hash, etc).
 pub trait ChunkerImpl {
     /// Look at the new bytes to maybe find a boundary.
+    /// The boundary is an index within `data`, after which the cut-point is set.
+    /// I.e., a return value of `Some(0)` indicates that only the first byte of this block should be
+    /// included in the current chunk.
     fn find_boundary(&mut self, data: &[u8]) -> Option<usize>;
 
     /// Reset the internal state after a chunk has been emitted
@@ -338,9 +353,7 @@ impl<R: Read, I: ChunkerImpl> ChunkStream<R, I> {
                 return None;
             }
         }
-        if let Some(split) =
-            self.inner.find_boundary(&self.buffer[self.pos..self.len])
-        {
+        if let Some(split) = self.inner.find_boundary(&self.buffer[self.pos..self.len]) {
             assert!(self.pos + split < self.len);
             self.status = EmitStatus::AtSplit;
             let start = self.pos;
@@ -413,9 +426,7 @@ impl<'a, I: ChunkerImpl> Iterator for Slices<'a, I> {
     fn next(&mut self) -> Option<&'a [u8]> {
         if self.pos == self.buffer.len() {
             None
-        } else if let Some(split) =
-            self.inner.find_boundary(&self.buffer[self.pos..])
-        {
+        } else if let Some(split) = self.inner.find_boundary(&self.buffer[self.pos..]) {
             assert!(self.pos + split < self.buffer.len());
             let start = self.pos;
             self.pos += split + 1;
@@ -565,10 +576,7 @@ mod tests {
             result.extend(chunk);
             result.push(b'|');
         }
-        assert_eq!(
-            from_utf8(&result).unwrap(),
-            from_utf8(&expected).unwrap()
-        );
+        assert_eq!(from_utf8(&result).unwrap(), from_utf8(&expected).unwrap());
     }
 
     #[test]
@@ -583,10 +591,7 @@ mod tests {
             result.extend(chunk);
             result.push(b'|');
         }
-        assert_eq!(
-            from_utf8(&result).unwrap(),
-            from_utf8(&expected).unwrap()
-        );
+        assert_eq!(from_utf8(&result).unwrap(), from_utf8(&expected).unwrap());
     }
 
     #[test]
@@ -605,10 +610,7 @@ mod tests {
                 ChunkInput::End => result.push(b'|'),
             }
         }
-        assert_eq!(
-            from_utf8(&result).unwrap(),
-            from_utf8(&expected).unwrap()
-        );
+        assert_eq!(from_utf8(&result).unwrap(), from_utf8(&expected).unwrap());
     }
 
     #[test]
@@ -621,10 +623,7 @@ mod tests {
             result.extend(slice);
             result.push(b'|');
         }
-        assert_eq!(
-            from_utf8(&result).unwrap(),
-            from_utf8(&expected).unwrap()
-        );
+        assert_eq!(from_utf8(&result).unwrap(), from_utf8(&expected).unwrap());
     }
 
     #[test]
@@ -639,10 +638,7 @@ mod tests {
         }
         assert_eq!(
             result,
-            vec![
-                (0, 3), (3, 5), (8, 4), (12, 2),
-                (14, 6), (20, 6), (26, 7),
-            ]
+            vec![(0, 3), (3, 5), (8, 4), (12, 2), (14, 6), (20, 6), (26, 7),]
         );
     }
 
@@ -662,8 +658,15 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                (0, 3), (3, 5), (8, 4), (12, 2),
-                (14, 5), (19, 5), (24, 3), (27, 5), (32, 1),
+                (0, 3),
+                (3, 5),
+                (8, 4),
+                (12, 2),
+                (14, 5),
+                (19, 5),
+                (24, 3),
+                (27, 5),
+                (32, 1),
             ]
         );
     }
