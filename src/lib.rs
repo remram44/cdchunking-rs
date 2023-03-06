@@ -119,12 +119,14 @@
 
 mod ae;
 mod bfbc;
+mod gear;
 mod mii;
 mod pci;
 mod ram;
 
 pub use ae::AEChunker;
 pub use bfbc::BFBCChunker;
+pub use gear::Gear;
 pub use mii::MIIChunker;
 pub use pci::{PCIChunker, PCIChunkerRunningPopcount};
 pub use ram::{MaybeOptimizedRAMChunker, RAMChunker};
