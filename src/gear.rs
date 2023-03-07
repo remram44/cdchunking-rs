@@ -14,7 +14,7 @@ use ChunkerImpl;
 ///     hex_string = hex(value)[2:].zfill(8)
 ///     print("0x" + hex_string)
 /// ```
-static TABLE: [u32; 256] = [
+pub static TABLE: [u32; 256] = [
     0xd3eb979d, 0xd6d83960, 0x3cd24090, 0x702e952e, 0x50c47f4a, 0xdb56d7b6, 0x1470b666, 0x917d698c,
     0x4b222ddb, 0x9e61352d, 0xb1bb53ca, 0x73e47b3b, 0x48bc9c75, 0xcd61fb37, 0x3f3b76ab, 0x4e703f12,
     0x8192bf76, 0x3b4bcfbf, 0xb1096934, 0x6dcd3b70, 0x3b62b5e9, 0xa3a3fd75, 0x3f4a0b40, 0x104f764c,
@@ -57,16 +57,16 @@ static TABLE: [u32; 256] = [
 /// Performance Evaluation 79 (2014): 258-272.
 /// PDF: https://cswxia.github.io/pub/DElta-PEVA-2014.pdf
 #[derive(Debug, Clone)]
-pub struct Gear {
+pub struct GearChunker {
     mask: u32,
     state: GearState,
 }
 
-impl Gear {
+impl GearChunker {
     /// Creates a new Gear hasher.
     /// The mask should have log2(target_chunk_size) most-significant 1-bits set.
-    pub fn new(mask: u32) -> Gear {
-        Gear {
+    pub fn new(mask: u32) -> GearChunker {
+        GearChunker {
             mask,
             state: Default::default(),
         }
@@ -76,15 +76,18 @@ impl Gear {
 #[derive(Clone, Copy, Debug, Default)]
 struct GearState {
     hash: u32,
+    pos: usize,
 }
 
 impl GearState {
     fn reset(&mut self) {
-        self.hash = 0
+        self.hash = 0;
+        self.pos = 0
     }
 
     fn ingest(&mut self, b: u8) {
         self.hash = (self.hash << 1).wrapping_add(TABLE[b as usize]);
+        self.pos += 1;
     }
 
     fn check_hash(&self, mask: u32) -> bool {
@@ -92,12 +95,80 @@ impl GearState {
     }
 }
 
-impl ChunkerImpl for Gear {
+impl ChunkerImpl for GearChunker {
     fn find_boundary(&mut self, data: &[u8]) -> Option<usize> {
         for (i, &b) in data.iter().enumerate() {
             self.state.ingest(b);
 
             if self.state.check_hash(self.mask) {
+                return Some(i);
+            }
+        }
+
+        None
+    }
+
+    fn reset(&mut self) {
+        self.state.reset()
+    }
+}
+
+/// A hasher that implements the Gear algorithm with normalized chunking modifications.
+///
+/// This algorithm uses a `u8->u32` lookup table, which it mixes into the hash for each input byte.
+/// The normalized chunking modifications utilize two bitmasks to find chunk boundaries:
+/// - Chunks smaller or equal in size to the target chunk size use a lower bit mask consisting of
+///   more 1-bits.
+/// - As soon as the target chunk size is reached, the upper (=smaller) bitmask is used.
+/// This reduces chunk size variability, probably at the cost of deduplication.
+///
+/// Source: Xia, Wen, et al. "Ddelta: A deduplication-inspired fast delta compression approach."
+/// Performance Evaluation 79 (2014): 258-272.
+/// PDF: https://cswxia.github.io/pub/DElta-PEVA-2014.pdf
+///
+/// Source for the normalized chunking modifications: Xia, Wen, et al. "FastCDC: A fast and
+/// efficient content-defined chunking approach for data deduplication." 2016 {USENIX} Annual
+/// Technical Conference ({USENIX}{ATC} 16). 2016.
+/// PDF: https://www.usenix.org/system/files/conference/atc16/atc16-paper-xia.pdf
+#[derive(Debug, Clone)]
+pub struct NormalizedChunkingGearChunker {
+    lower_mask: u32,
+    upper_mask: u32,
+    target_chunk_size: usize,
+    state: GearState,
+}
+
+impl NormalizedChunkingGearChunker {
+    /// Creates a new Gear hasher.
+    /// The masks should have a number most-significant 1-bits set.
+    /// The lower mask is the larger one, applied until target_chunk_size is reached.
+    /// Afterwards, the smaller upper_mask is applied.
+    pub fn new(
+        lower_mask: u32,
+        upper_mask: u32,
+        target_chunk_size: usize,
+    ) -> NormalizedChunkingGearChunker {
+        NormalizedChunkingGearChunker {
+            lower_mask,
+            upper_mask,
+            target_chunk_size,
+            state: Default::default(),
+        }
+    }
+}
+
+impl ChunkerImpl for NormalizedChunkingGearChunker {
+    fn find_boundary(&mut self, data: &[u8]) -> Option<usize> {
+        for (i, &b) in data.iter().enumerate() {
+            self.state.ingest(b);
+
+            let mask = if self.state.pos <= self.target_chunk_size {
+                self.lower_mask
+            } else {
+                self.upper_mask
+            };
+
+            if self.state.check_hash(mask) {
                 return Some(i);
             }
         }
