@@ -1,4 +1,5 @@
 use ChunkerImpl;
+use std::f64::consts;
 
 /// AEChunker implements the Asymmetric Extremum (AE) algorithm.
 ///
@@ -15,9 +16,10 @@ pub struct AEChunker {
 }
 
 impl AEChunker {
-    /// Creates a new chunker using the Asymmetric Extremum algorithm with the configured size for
+    /// Creates a new chunker using the Asymmetric Extremum algorithm with the given target chunk size.
     /// the fixed window.
-    pub fn new(window_size: usize) -> AEChunker {
+    pub fn new(target_chunk_size: usize) -> AEChunker {
+        let window_size = (target_chunk_size as f64 / (consts::E - 1 as f64)).round() as usize;
         AEChunker {
             window_size,
             state: Default::default(),

@@ -1,4 +1,5 @@
 use ChunkerImpl;
+use std::f64::consts;
 
 /// A chunker that implements the Rapid Asymmetric Maximum (RAM) algorithm.
 ///
@@ -24,9 +25,9 @@ pub struct RAMChunker {
 }
 
 impl RAMChunker {
-    /// Creates a chunker using the Rapid Asymmetric Maximum algorithm with the given size for the
-    /// fixed window.
-    pub fn new(window_size: usize) -> RAMChunker {
+    /// Creates a chunker using the Rapid Asymmetric Maximum algorithm with the given target chunk size.
+    pub fn new(target_chunk_size: usize) -> RAMChunker {
+        let window_size = (target_chunk_size as f64 / (consts::E - 1 as f64)) as usize;
         RAMChunker {
             window_size,
             state: Default::default(),
