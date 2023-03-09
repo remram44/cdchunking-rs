@@ -305,6 +305,7 @@ impl<R: Read, I: ChunkerImpl> Iterator for WholeChunks<R, I> {
 /// Objects returned from the ChunkStream iterator.
 ///
 /// This is either more data in the current chunk, or a chunk boundary.
+#[derive(Debug)]
 pub enum ChunkInput<'a> {
     Data(&'a [u8]),
     End,
