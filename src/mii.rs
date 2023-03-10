@@ -38,7 +38,7 @@ struct MIIChunkerState {
 
 impl MIIChunkerState {
     fn reset(&mut self) {
-        self.increment_run_length = 0;
+        self.increment_run_length = 1;
         self.previous_value = None;
     }
 }
@@ -56,7 +56,7 @@ impl ChunkerImpl for MIIChunker {
                     }
                 } else {
                     // We don't have an incremental interval anymore.
-                    self.state.increment_run_length = 0;
+                    self.state.increment_run_length = 1;
                 }
             }
 
