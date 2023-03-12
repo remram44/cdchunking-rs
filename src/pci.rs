@@ -29,7 +29,7 @@ impl<const W: usize> PCIChunker<W> {
     /// sliding window.
     ///
     /// Contrary to the statements in the original paper, the number of one-bits in a uniformly
-    /// distributed byte is _not_ follow a discrete uniform distribution, but rather a binomial one.
+    /// distributed byte does _not_ follow a discrete uniform distribution, but rather a binomial one.
     pub fn new(one_bits_threshold: u32) -> PCIChunker<W> {
         PCIChunker {
             one_bits_threshold,
@@ -90,68 +90,9 @@ impl<const W: usize> PCIChunkerState<W> {
         self.pos += 1;
     }
 
-    fn ingest_byte_raw(&mut self, b: u8) {
-        self.window[self.pos % W] = b;
-        self.pos += 1;
-    }
-
-    fn popcount_window(&self) -> u32 {
-        self.window.iter().map(|b| b.count_ones()).sum()
-    }
 }
 
 impl<const W: usize> ChunkerImpl for PCIChunker<W> {
-    fn find_boundary(&mut self, data: &[u8]) -> Option<usize> {
-        for (i, &b) in data.iter().enumerate() {
-            // Ingest the byte, updating the window.
-            self.state.ingest_byte_raw(b);
-
-            // We still need to check if we've read at least window_size bytes, as this sets an
-            // implicit bound on the minimum chunk size.
-            if self.state.is_window_full() {
-                if self.state.popcount_window() >= self.one_bits_threshold {
-                    return Some(i);
-                }
-            }
-        }
-
-        // No cut-point found within current data block.
-        None
-    }
-
-    fn reset(&mut self) {
-        self.state.reset()
-    }
-}
-
-/// A chunker implementing the Parity Check of Interval (PCI) algorithm.
-///
-/// In contrast to the pseudocode in the paper, the popcount is not recomputed over the entire
-/// window for each byte, but rather kept updated whenever the window moves.
-///
-/// See `PCIChunker` for an implementation of the algorithm without running popcount.
-#[derive(Debug, Clone)]
-pub struct PCIChunkerRunningPopcount<const W: usize> {
-    one_bits_threshold: u32,
-    state: PCIChunkerState<W>,
-}
-
-impl<const W: usize> PCIChunkerRunningPopcount<W> {
-    /// Create a new chunker implementing the ParityCheck of Interval (PCI) algorithm.
-    /// The generic parameter `W` sets the size of the window in bytes.
-    /// The parameter `one_bits_threshold` defines the inclusive threshold of one-bits within the
-    /// sliding window.
-    ///
-    /// This implementation keeps a running popcount when processing bytes.
-    pub fn new(one_bits_threshold: u32) -> PCIChunkerRunningPopcount<W> {
-        PCIChunkerRunningPopcount {
-            one_bits_threshold,
-            state: PCIChunkerState::default(),
-        }
-    }
-}
-
-impl<const W: usize> ChunkerImpl for PCIChunkerRunningPopcount<W> {
     fn find_boundary(&mut self, data: &[u8]) -> Option<usize> {
         for (i, &b) in data.iter().enumerate() {
             // Ingest the byte, updating the window and the running popcount.
