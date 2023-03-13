@@ -255,11 +255,7 @@ impl<I: ChunkerImpl> Chunker<I> {
     pub fn max_size(self, max: usize) -> Chunker<SizeLimited<I>> {
         assert!(max > 0);
         Chunker {
-            inner: SizeLimited {
-                inner: self.inner,
-                pos: 0,
-                max_size: max,
-            },
+            inner: SizeLimited::new(self.inner, max),
         }
     }
 }
@@ -443,6 +439,17 @@ pub struct SizeLimited<I: ChunkerImpl> {
     inner: I,
     pos: usize,
     max_size: usize,
+}
+
+impl<I: ChunkerImpl> SizeLimited<I> {
+    /// Wraps the given chunker implementation to limit the size of produced chunks.
+    pub fn new(inner: I, max_size: usize) -> Self {
+        SizeLimited {
+            inner,
+            pos: 0,
+            max_size,
+        }
+    }
 }
 
 impl<I: ChunkerImpl> ChunkerImpl for SizeLimited<I> {
