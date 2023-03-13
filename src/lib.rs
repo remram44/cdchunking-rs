@@ -119,6 +119,7 @@
 
 mod ae;
 mod bfbc;
+mod fsc;
 mod gear;
 mod mii;
 mod pci;
@@ -126,6 +127,7 @@ mod ram;
 
 pub use ae::AEChunker;
 pub use bfbc::BFBCChunker;
+pub use fsc::FixedSizeChunker;
 pub use gear::{GearChunker, NormalizedChunkingGearChunker};
 pub use mii::MIIChunker;
 pub use pci::PCIChunker;
