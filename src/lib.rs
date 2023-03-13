@@ -128,7 +128,7 @@ pub use ae::AEChunker;
 pub use bfbc::BFBCChunker;
 pub use gear::{GearChunker, NormalizedChunkingGearChunker};
 pub use mii::MIIChunker;
-pub use pci::{PCIChunker, PCIChunkerNonConst};
+pub use pci::PCIChunker;
 pub use ram::{MaybeOptimizedRAMChunker, RAMChunker};
 
 #[cfg(test)]
