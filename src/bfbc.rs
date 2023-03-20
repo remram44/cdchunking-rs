@@ -62,6 +62,10 @@ impl BFBCChunker {
     /// The given byte pairs are checked, in order, for each sliding window after `min_chunk_size`
     /// bytes to find a chunk boundary.
     pub fn new(frequent_byte_pairs: Vec<(u8, u8)>, min_chunk_size: usize) -> BFBCChunker {
+        assert!(
+            min_chunk_size >= 2,
+            "min_chunk_size needs to be at least 2 (the size of the window)"
+        );
         BFBCChunker {
             frequent_byte_pairs: frequent_byte_pairs
                 .into_iter()
