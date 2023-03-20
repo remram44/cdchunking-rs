@@ -51,7 +51,7 @@ use ChunkerImpl;
 /// PDF: https://www.mdpi.com/2073-8994/12/11/1841/pdf?version=1605858554
 #[derive(Debug, Clone)]
 pub struct BFBCChunker {
-    frequent_byte_pairs: Vec<(u8, u8)>,
+    frequent_byte_pairs: Vec<u16>,
     min_chunk_size: usize,
     state: BFBCChunkerState,
 }
@@ -63,7 +63,10 @@ impl BFBCChunker {
     /// bytes to find a chunk boundary.
     pub fn new(frequent_byte_pairs: Vec<(u8, u8)>, min_chunk_size: usize) -> BFBCChunker {
         BFBCChunker {
-            frequent_byte_pairs,
+            frequent_byte_pairs: frequent_byte_pairs
+                .into_iter()
+                .map(|(b1, b2)| (b1 as u16) << 8 | b2 as u16)
+                .collect(),
             min_chunk_size,
             state: Default::default(),
         }
@@ -76,43 +79,33 @@ struct BFBCChunkerState {
     pos: usize,
 
     /// The previously ingested byte, if `pos>0`.
-    previous_byte: Option<u8>,
+    window: u16,
 }
 
 impl BFBCChunkerState {
     fn reset(&mut self) {
         self.pos = 0;
-        self.previous_byte = None;
+        self.window = 0;
     }
 
     fn ingest(&mut self, b: u8) {
         self.pos += 1;
-        self.previous_byte = Some(b)
-    }
-
-    fn match_against(&self, b: u8, pair: &(u8, u8)) -> bool {
-        b == pair.1
-            && self
-                .previous_byte
-                .map(|previous_byte| previous_byte == pair.0)
-                .unwrap_or_else(|| false)
+        self.window = self.window << 8 | b as u16
     }
 }
 
 impl ChunkerImpl for BFBCChunker {
     fn find_boundary(&mut self, data: &[u8]) -> Option<usize> {
         for (i, &b) in data.iter().enumerate() {
-            if self.state.pos > self.min_chunk_size {
-                // TODO optimize for large number of frequent byte pairs, maybe.
+            self.state.ingest(b);
+
+            if self.state.pos >= self.min_chunk_size {
                 for pair in self.frequent_byte_pairs.iter() {
-                    if self.state.match_against(b, pair) {
+                    if self.state.window == *pair {
                         return Some(i);
                     }
                 }
             }
-
-            // Important: We ingest after we compare, as otherwise state.previous_byte==b.
-            self.state.ingest(b);
         }
 
         // No chunk boundary found in current data block.
