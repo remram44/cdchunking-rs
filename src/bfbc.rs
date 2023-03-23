@@ -4,12 +4,12 @@ use ChunkerImpl;
 ///
 /// This algorithm sets chunk boundaries based on frequently occurring byte pairs.
 /// A minimum chunk size is enforced. Afterwards, a sliding window of two bytes is compared to a
-/// list of frequently occurring byte pairs in order.
+/// set of frequently occurring byte pairs.
 ///
 /// No pseudocode is given in the paper, this implementation follows the textual description
 /// instead.
-/// The list of frequent byte pairs is assumed to be small and unsorted and is searched sequentially
-/// for each byte after the minimum chunk size has been reached.
+/// The list of frequent byte pairs is stored as a 2^16=8KiB bitmap on the stack. This is quite a
+/// bit, but makes the algorithm run in constant time, regardless of the number of divisors.
 ///
 /// To function properly, prior analysis of the byte pair frequency of the dataset needs to be done.
 /// That analysis, and storage of its results, is not implemented here.
@@ -51,7 +51,7 @@ use ChunkerImpl;
 /// PDF: https://www.mdpi.com/2073-8994/12/11/1841/pdf?version=1605858554
 #[derive(Debug, Clone)]
 pub struct BFBCChunker {
-    frequent_byte_pairs: Vec<u16>,
+    frequent_byte_pairs: [bool; 65536],
     min_chunk_size: usize,
     state: BFBCChunkerState,
 }
@@ -66,11 +66,15 @@ impl BFBCChunker {
             min_chunk_size >= 2,
             "min_chunk_size needs to be at least 2 (the size of the window)"
         );
+
+        let mut frequent_pair_array = [false; 65536];
+        frequent_byte_pairs
+            .into_iter()
+            .map(|(b1, b2)| (b1 as u16) << 8 | b2 as u16)
+            .for_each(|p| frequent_pair_array[p as usize] = true);
+
         BFBCChunker {
-            frequent_byte_pairs: frequent_byte_pairs
-                .into_iter()
-                .map(|(b1, b2)| (b1 as u16) << 8 | b2 as u16)
-                .collect(),
+            frequent_byte_pairs: frequent_pair_array,
             min_chunk_size,
             state: Default::default(),
         }
@@ -104,10 +108,8 @@ impl ChunkerImpl for BFBCChunker {
             self.state.ingest(b);
 
             if self.state.pos >= self.min_chunk_size {
-                for pair in self.frequent_byte_pairs.iter() {
-                    if self.state.window == *pair {
-                        return Some(i);
-                    }
+                if self.frequent_byte_pairs[self.state.window as usize] {
+                    return Some(i);
                 }
             }
         }
