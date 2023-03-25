@@ -51,7 +51,7 @@ use ChunkerImpl;
 /// PDF: https://www.mdpi.com/2073-8994/12/11/1841/pdf?version=1605858554
 #[derive(Debug, Clone)]
 pub struct BFBCChunker {
-    frequent_byte_pairs: [bool; 65536],
+    frequent_byte_pairs: [u8; 8192],
     min_chunk_size: usize,
     state: BFBCChunkerState,
 }
@@ -67,17 +67,29 @@ impl BFBCChunker {
             "min_chunk_size needs to be at least 2 (the size of the window)"
         );
 
-        let mut frequent_pair_array = [false; 65536];
+        let mut frequent_pair_array = [0_u8; 8192];
         frequent_byte_pairs
             .into_iter()
             .map(|(b1, b2)| (b1 as u16) << 8 | b2 as u16)
-            .for_each(|p| frequent_pair_array[p as usize] = true);
+            .for_each(|p| {
+                let (i1, i2) = Self::byte_pair_to_bitfield_index(p);
+                frequent_pair_array[i1] |= 0b1 << i2;
+            });
 
         BFBCChunker {
             frequent_byte_pairs: frequent_pair_array,
             min_chunk_size,
             state: Default::default(),
         }
+    }
+
+    fn byte_pair_to_bitfield_index(val: u16) -> (usize, u32) {
+        (val as usize / 8, val as u32 % 8)
+    }
+
+    fn is_popular_pair(&self, val: u16) -> bool {
+        let (i1, i2) = Self::byte_pair_to_bitfield_index(val);
+        self.frequent_byte_pairs[i1] & (0b1 << i2) != 0
     }
 }
 
@@ -108,7 +120,7 @@ impl ChunkerImpl for BFBCChunker {
             self.state.ingest(b);
 
             if self.state.pos >= self.min_chunk_size {
-                if self.frequent_byte_pairs[self.state.window as usize] {
+                if self.is_popular_pair(self.state.window) {
                     return Some(i);
                 }
             }
