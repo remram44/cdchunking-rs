@@ -135,6 +135,9 @@ use std::num::Wrapping;
 /// hash, etc).
 pub trait ChunkerImpl {
     /// Look at the new bytes to maybe find a boundary.
+    /// The boundary is an index within `data`, after which the cut-point is set.
+    /// I.e., a return value of `Some(0)` indicates that only the first byte of this block should be
+    /// included in the current chunk.
     fn find_boundary(&mut self, data: &[u8]) -> Option<usize>;
 
     /// Reset the internal state after a chunk has been emitted
@@ -252,11 +255,7 @@ impl<I: ChunkerImpl> Chunker<I> {
     pub fn max_size(self, max: usize) -> Chunker<SizeLimited<I>> {
         assert!(max > 0);
         Chunker {
-            inner: SizeLimited {
-                inner: self.inner,
-                pos: 0,
-                max_size: max,
-            },
+            inner: SizeLimited::new(self.inner, max),
         }
     }
 }
@@ -288,6 +287,7 @@ impl<R: Read, I: ChunkerImpl> Iterator for WholeChunks<R, I> {
 /// Objects returned from the ChunkStream iterator.
 ///
 /// This is either more data in the current chunk, or a chunk boundary.
+#[derive(Debug)]
 pub enum ChunkInput<'a> {
     Data(&'a [u8]),
     End,
@@ -429,10 +429,27 @@ impl<'a, I: ChunkerImpl> Iterator for Slices<'a, I> {
     }
 }
 
+/// A wrapper that limits the size of produced chunks.
+///
+/// Note that the inner chunking implementation is reset when a chunk boundary is
+/// emitted because of the size limit. This will generally reduce content-dependence,
+/// and thus deduplication ratio, because the boundary is set by size rather than by
+/// content.
 pub struct SizeLimited<I: ChunkerImpl> {
     inner: I,
     pos: usize,
     max_size: usize,
+}
+
+impl<I: ChunkerImpl> SizeLimited<I> {
+    /// Wraps the given chunker implementation to limit the size of produced chunks.
+    pub fn new(inner: I, max_size: usize) -> Self {
+        SizeLimited {
+            inner,
+            pos: 0,
+            max_size,
+        }
+    }
 }
 
 impl<I: ChunkerImpl> ChunkerImpl for SizeLimited<I> {
