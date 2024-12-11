@@ -23,6 +23,7 @@ jobs:
       run: rustup toolchain install ${{ matrix.rust-version }} --profile minimal
     - name: Import fixed Cargo.lock file
       run: if [ -e .ci-Cargo.lock-${{ matrix.rust-version }} ]; then cp .ci-Cargo.lock-${{ matrix.rust-version }} Cargo.lock; fi
+      shell: bash
     - name: Build
       run: cargo build --verbose
     - name: Run tests
