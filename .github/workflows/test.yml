@@ -21,6 +21,8 @@ jobs:
     - uses: actions/checkout@v2
     - name: Set up Rust ${{ matrix.rust-version }}
       run: rustup toolchain install ${{ matrix.rust-version }} --profile minimal
+    - name: Import fixed Cargo.lock file
+      run: if [ -e .ci-Cargo.lock-${{ matrix.rust-version }} ]; then cp .ci-Cargo.lock-${{ matrix.rust-version }} Cargo.lock; fi
     - name: Build
       run: cargo build --verbose
     - name: Run tests
